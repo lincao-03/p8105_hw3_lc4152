@@ -156,5 +156,181 @@ interquartile range. There is no clear long-term trend in these
 conditional snowfall distributions.
 
 ## Problem 2
+### Import and clean the data
+
+```{r}
+covar_df =
+  read_csv("data/nhanes_covar.csv", skip = 4) |>
+  janitor::clean_names() |>
+  filter(age >= 21) |>
+  drop_na(sex, age, bmi, education) |>
+  mutate(
+    sex = factor(
+      sex,
+      levels = c(1, 2),
+      labels = c("Male", "Female")
+    ),
+    education = factor(
+      education,
+      levels = c(1, 2, 3),
+      labels = c(
+        "Less than high school",
+        "High school equivalent",
+        "More than high school"
+      )
+    )
+  )
+
+accel_df =
+  read_csv("data/nhanes_accel.csv") |>
+  janitor::clean_names()
+
+nhanes_df =
+  covar_df |>
+  left_join(accel_df, by = "seqn") |>
+  pivot_longer(
+    starts_with("min"),
+    names_to = "minute",
+    names_prefix = "min",
+    values_to = "mims"
+  ) |>
+  mutate(
+    minute = as.integer(minute),
+    hour = (minute - 1) / 60
+  )
+```
+
+Participants younger than 21 years and those with missing demographic
+data were excluded. Sex and education were converted to factors with
+descriptive labels. The demographic and activity datasets were merged
+using participant ID. Minute-level activity measurements were then
+converted from wide to long format, retaining all original demographic
+variables.
+
+The cleaned dataset includes `r nrow(covar_df)` participants.
+Each row of the merged, tidy dataset represents one minute for one
+participant. Minute 1 corresponds to midnight.
+
+### Number of participants by sex and education
+
+```{r}
+covar_df |>
+  count(education, sex) |>
+  pivot_wider(
+    names_from = sex,
+    values_from = n,
+    values_fill = 0
+  ) |>
+  knitr::kable(
+    col.names = c("Education", "Male", "Female")
+  )
+```
+
+The more than high school group has the most participants, with 56 men
+and 59 women. The less than high school group has similar numbers of
+men and women (27 and 28), while the high school equivalent group has
+more men than women (35 versus 23).
+
+### Age distributions by sex and education
+
+```{r, fig.width=10, fig.height=5}
+covar_df |>
+  ggplot(aes(x = sex, y = age, fill = sex)) +
+  geom_boxplot(width = 0.5) +
+  facet_wrap(
+    ~ education,
+    labeller = label_wrap_gen(width = 20)
+  ) +
+  labs(
+    title = "Age Distributions by Sex and Education",
+    x = "Sex",
+    y = "Age (years)"
+  ) +
+  guides(fill = "none")
+```
+Participants with more than high school education are generally younger,
+with median ages of approximately 44 for men and 41 for women. In the
+less than high school group, men and women have similar age distributions,
+with medians around 60. In the high school equivalent group, women have
+a higher median age than men, approximately 62 versus 53. However, age
+distributions overlap substantially across groups.
+
+### Total daily activity and age
+
+```{r, fig.width=10, fig.height=5}
+activity_total =
+  nhanes_df |>
+  group_by(seqn, sex, age, bmi, education) |>
+  summarise(
+    total_activity = sum(mims),
+    .groups = "drop"
+  )
+
+activity_total |>
+  ggplot(aes(x = age, y = total_activity, color = sex)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "loess", se = FALSE) +
+  facet_wrap(
+    ~ education,
+    labeller = label_wrap_gen(width = 20)
+  ) +
+  labs(
+    title = "Total Daily Activity and Age",
+    x = "Age (years)",
+    y = "Total daily activity (sum of MIMS)",
+    color = "Sex"
+  )
+```
+Total daily activity generally decreases with age across all three
+education groups, although the relationships are not strictly linear.
+In the less than high school group, men tend to have higher fitted
+activity levels during middle age. In the high school equivalent group,
+women have higher fitted activity levels around ages 30–50. In the more
+than high school group, women generally have higher fitted activity
+levels across most ages. There is considerable individual variation,
+and these descriptive patterns do not establish causal relationships.
+### Activity patterns over 24 hours
+
+```{r, fig.width=10, fig.height=5}
+activity_time =
+  nhanes_df |>
+  group_by(education, sex, minute, hour) |>
+  summarise(
+    mean_mims = mean(mims),
+    .groups = "drop"
+  )
+
+activity_time |>
+  ggplot(aes(x = hour, y = mean_mims, color = sex)) +
+  geom_line(alpha = 0.3) +
+  geom_smooth(
+    method = "loess",
+    span = 0.15,
+    se = FALSE
+  ) +
+  facet_wrap(
+    ~ education,
+    labeller = label_wrap_gen(width = 20)
+  ) +
+  scale_x_continuous(
+    breaks = c(0, 6, 12, 18, 24),
+    limits = c(0, 24)
+  ) +
+  labs(
+    title = "Activity Patterns over 24 Hours",
+    x = "Hours since midnight",
+    y = "Mean activity (MIMS)",
+    color = "Sex"
+  )
+```
+All three education groups show low activity overnight, a sharp increase
+in the morning, higher activity during the day, and a decline in the
+evening. In the less than high school group, activity peaks around late
+morning, and men and women have similar daytime patterns. In the high
+school equivalent group, women generally have higher activity during
+the late morning and early afternoon. The more than high school group
+shows a clearer sex difference, with women having higher average
+activity throughout most daytime hours. These comparisons are
+descriptive and may partly reflect differences in age across groups.
 
 ## Problem 3

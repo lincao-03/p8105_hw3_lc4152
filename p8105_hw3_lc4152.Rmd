@@ -289,6 +289,7 @@ women have higher fitted activity levels around ages 30–50. In the more
 than high school group, women generally have higher fitted activity
 levels across most ages. There is considerable individual variation,
 and these descriptive patterns do not establish causal relationships.
+
 ### Activity patterns over 24 hours
 
 ```{r, fig.width=10, fig.height=5}
@@ -475,6 +476,7 @@ longer median durations than weekday rides, particularly in 2020, when
 the weekend medians are approximately 16.5 minutes. January 2020 also
 shows longer weekend rides, whereas January 2024 has little variation
 across weekdays and no clear weekend increase.
+
 ### Ride duration distributions in 2024
 
 ```{r, fig.width=10, fig.height=7}

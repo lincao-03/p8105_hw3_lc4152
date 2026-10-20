@@ -9,6 +9,151 @@ library(p8105.datasets)
 ```
 
 ## Problem 1
+### Data cleaning and description
+
+```{r}
+data("ny_noaa")
+
+noaa_df =
+  ny_noaa |>
+  mutate(
+    year = lubridate::year(date),
+    month = lubridate::month(date),
+    day = lubridate::day(date),
+    tmax = as.numeric(tmax) / 10,
+    tmin = as.numeric(tmin) / 10,
+    prcp = prcp / 10
+  )
+```
+
+The original dataset contains `r nrow(ny_noaa)` observations and
+`r ncol(ny_noaa)` variables from `r n_distinct(ny_noaa$id)` weather
+stations in New York. Each observation represents weather measurements
+for one station on one date. The data include precipitation, snowfall,
+snow depth, and maximum and minimum temperatures.
+
+```{r}
+noaa_df |>
+  summarise(
+    across(
+      c(prcp, snow, snwd, tmax, tmin),
+      ~ mean(is.na(.x)) * 100
+    )
+  ) |>
+  pivot_longer(
+    everything(),
+    names_to = "variable",
+    values_to = "missing_percent"
+  ) |>
+  knitr::kable(
+    digits = 1,
+    col.names = c("Variable", "Missing (%)")
+  )
+```
+Both maximum and minimum temperatures are missing for 43.7% of observations.
+Snow depth is missing for 22.8%, snowfall for 14.7%, and precipitation
+for 5.6%. Therefore, summaries and plots based on observed values may
+not fully represent all stations and dates.
+
+### Most common snowfall values
+
+```{r}
+noaa_df |>
+  filter(!is.na(snow)) |>
+  count(snow, sort = TRUE) |>
+  slice_head(n = 10) |>
+  knitr::kable(
+    col.names = c("Snowfall (mm)", "Number of observations")
+  )
+```
+The most common snowfall value is 0 mm, with 2,008,508 observations,
+because most station-days have no snowfall. Other common values include
+25, 13, and 51 mm. These values are approximately 1, 0.5, and 2 inches,
+suggesting that measurements originally recorded in inches were
+converted to millimeters and rounded.
+
+### Average maximum temperature in January and July
+
+```{r, fig.width=10, fig.height=5}
+noaa_monthly =
+  noaa_df |>
+  filter(month %in% c(1, 7)) |>
+  group_by(id, year, month) |>
+  summarise(
+    mean_tmax = mean(tmax, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  filter(!is.na(mean_tmax)) |>
+  mutate(
+    month = factor(
+      month,
+      levels = c(1, 7),
+      labels = c("January", "July")
+    )
+  )
+
+noaa_monthly |>
+  ggplot(aes(x = year, y = mean_tmax, group = id)) +
+  geom_line(alpha = 0.2, color = "steelblue") +
+  facet_wrap(~ month) +
+  labs(
+    title = "Average Maximum Temperature by Station and Year",
+    x = "Year",
+    y = "Average maximum temperature (°C)"
+  )
+```
+Average maximum temperatures are much higher in July than in January.
+January also shows larger year-to-year fluctuations. Many stations
+follow similar patterns across years, suggesting shared regional
+weather patterns. There are some possible outliers, including a July
+average near 14°C around 1988, well below the other stations. Unusual
+values may reflect local conditions, incomplete observations, or
+recording errors and would require further investigation.
+
+### Temperature relationship and snowfall distributions
+
+```{r, fig.width=10, fig.height=10}
+temp_plot =
+  noaa_df |>
+  filter(!is.na(tmax), !is.na(tmin)) |>
+  ggplot(aes(x = tmin, y = tmax)) +
+  geom_bin_2d(bins = 60) +
+  scale_fill_viridis_c(trans = "log10") +
+  labs(
+    title = "Maximum versus Minimum Temperature",
+    x = "Minimum temperature (°C)",
+    y = "Maximum temperature (°C)",
+    fill = "Count"
+  )
+
+snow_plot =
+  noaa_df |>
+  filter(snow > 0, snow < 100) |>
+  ggplot(aes(x = factor(year), y = snow)) +
+  geom_boxplot(outlier.size = 0.5) +
+  labs(
+    title = "Distribution of Snowfall by Year",
+    x = "Year",
+    y = "Snowfall (mm)"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  )
+
+temp_plot / snow_plot
+```
+Maximum and minimum temperatures show a strong positive relationship:
+days with higher minimum temperatures generally also have higher
+maximum temperatures. A few observations have extreme temperatures,
+and some appear to have maximum temperatures below minimum
+temperatures, suggesting possible recording errors.
+
+For snowfall values greater than 0 and less than 100 mm, the
+distributions are similar across years. The median is approximately
+25 mm in each year, and the middle 50% of observations generally fall
+between about 13 and 51 mm. Some years, such as 2006, have a smaller
+interquartile range. There is no clear long-term trend in these
+conditional snowfall distributions.
 
 ## Problem 2
 
